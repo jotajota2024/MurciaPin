@@ -3,15 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MurciaPin — Mapa de Eventos</title>
+    <title>MurciaPin — Mapa de Eventos en Tiempo Real</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="style.css">
     
+    <link rel="stylesheet" href="style.css">
     <style>
-        .navbar-top { position: fixed; top: 0; left: 0; width: 100%; height: 50px; background: #ffffff; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 2000; display: flex; align-items: center; justify-content: center; }
-        .navbar-top h1 { margin: 0; font-size: 1.2rem; font-family: system-ui, sans-serif; font-weight: 700; color: #333; cursor: pointer; }
-        #map { position: absolute; top: 50px; bottom: 0; left: 0; right: 0; z-index: 1; }
+        /* Barra superior fija de MurciaPin */
+        .navbar-top {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50px;
+            background: #ffffff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        /* Añadimos cursor pointer para saber que es clickable */
+        .navbar-top h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-weight: 700;
+            color: #333;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            user-select: none;
+        }
+        #map {
+            position: absolute;
+            top: 50px;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+        .emoji-marker {
+            background: white;
+            border: 2px solid #333;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
     </style>
 </head>
 <body>
@@ -21,31 +60,267 @@
     </div>
 
     <div id="map"></div>
-    <button id="btn-add-pin" class="btn-flotante">+</button>
+
+    <button id="btn-add-pin" class="btn-flotante" title="Añadir evento aquí">+</button>
 
     <div id="bottom-sheet" class="bottom-sheet">
-        <div class="sheet-header"><button id="btn-close-sheet" class="btn-cerrar">&times;</button></div>
+        <div class="sheet-header">
+            <div class="sheet-handle"></div>
+            <button id="btn-close-sheet" class="btn-cerrar">&times;</button>
+        </div>
+        
         <div class="sheet-content">
+            <h3>¿Qué está pasando aquí?</h3>
+            <p class="sheet-subtitle">El pin desaparecerá automáticamente en unas horas.</p>
+            
             <form id="form-evento">
                 <input type="hidden" id="form-lat">
                 <input type="hidden" id="form-lng">
+
                 <div class="form-group">
+                    <label for="event-type">Tipo de evento</label>
                     <select id="event-type" required>
-                        <option value="" disabled selected>Categoría...</option>
+                        <option value="" disabled selected>Selecciona una categoría...</option>
                         <option value="Musica">🎵 Música</option>
                         <option value="Deporte">⚽ Deporte</option>
                         <option value="Social">🍻 Social</option>
+                        <option value="Comida">🍔 Comida</option>
+                        <option value="Gaming">🎮 Gaming</option>
+                        <option value="Cultura">🎨 Cultura</option>
+                        <option value="Aviso">🚨 Aviso</option>
                     </select>
-                    <textarea id="event-comment" maxlength="140" placeholder="Descripción..." required></textarea>
                 </div>
-                <button type="submit" class="btn-enviar">Soltar Pin 📍</button>
+
+                <div class="form-group">
+                    <label for="event-comment">¿Qué pasa? (Anónimo, máx. 140 caracteres)</label>
+                    <textarea id="event-comment" maxlength="140" placeholder="Ej: Concierto en directo, tapeo..." required></textarea>
+                </div>
+
+                <button type="submit" id="btn-guardar" class="btn-enviar">Soltar Pin 📍</button>
             </form>
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js" defer></script>
     
+    <script>
+        const URL_SUPABASE = "https://sfeckkggzfokbhexmoao.supabase.co";
+        const KEY_SUPABASE = "sb_publishable_6k_ysIBmr16TMhllsZF4mg_UEsS_zYr";
+        
+        let supabaseClient;
+
+        const MURCIA_CENTRO = [37.9922, -1.1307];
+        const MURCIA_BOUNDS = L.latLngBounds(L.latLng(37.3, -2.2), L.latLng(38.8, -0.6));
+
+        let map;
+        let ID_USUARIO;
+        let bottomSheet, btnCloseSheet, formEvento, btnAddPin;
+
+        // Variables para controlar el "Huevo de Pascua" de los 5 clics
+        let clickCount = 0;
+        let clickTimeout;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            supabaseClient = supabase.createClient(URL_SUPABASE, KEY_SUPABASE);
+
+            bottomSheet = document.getElementById("bottom-sheet");
+            btnCloseSheet = document.getElementById("btn-close-sheet");
+            formEvento = document.getElementById("form-evento");
+            btnAddPin = document.getElementById("btn-add-pin");
+
+            obtenerOIdAnonimo();
+            inicializarMapa();
+            configurarEventosInterfaz();
+            configurarModoAdmin(); // <- Activamos la escucha del logo
+            cargarEventos();
+        });
+
+        function obtenerOIdAnonimo() {
+            let id = localStorage.getItem("murciapin_user_id");
+            if (!id || id.startsWith("user-")) {
+                id = crypto.randomUUID(); 
+                localStorage.setItem("murciapin_user_id", id);
+            }
+            ID_USUARIO = id;
+        }
+
+        function inicializarMapa() {
+            map = L.map('map', {
+                maxBounds: MURCIA_BOUNDS,
+                maxBoundsViscosity: 0.8
+            }).setView(MURCIA_CENTRO, 14);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            map.locate({ setView: true, maxZoom: 15 });
+            map.on('locationerror', () => { map.setView(MURCIA_CENTRO, 14); });
+
+            map.on('click', (e) => {
+                abrirFormularioPin(e.latlng.lat, e.latlng.lng);
+            });
+        }
+
+        function configurarEventosInterfaz() {
+            btnCloseSheet.addEventListener("click", cerrarFormularioPin);
+            btnAddPin.addEventListener("click", () => {
+                const centro = map.getCenter();
+                abrirFormularioPin(centro.lat, centro.lng);
+            });
+            formEvento.addEventListener("submit", guardarEventoEnSupabase);
+        }
+
+        // LÓGICA OCULTA DEL MODO ADMINISTRADOR
+        function configurarModoAdmin() {
+            const logo = document.getElementById("logo-admin");
+            
+            logo.addEventListener("click", () => {
+                clickCount++;
+                
+                clearTimeout(clickTimeout);
+                
+                // Si pasa más de 2 segundos sin hacer clic, el contador se reinicia
+                clickTimeout = setTimeout(() => {
+                    clickCount = 0;
+                }, 2000);
+
+                // Al llegar a 5 clics rápidos...
+                if (clickCount === 5) {
+                    const esAdmin = localStorage.getItem("murciapin_admin") === "true";
+                    
+                    if (esAdmin) {
+                        // Si ya eras admin, lo desactiva (por si quieres volver a probar como usuario normal)
+                        localStorage.removeItem("murciapin_admin");
+                        alert("🔴 Modo Administrador Desactivado. Volviendo a restricciones estándar.");
+                    } else {
+                        // Activa el modo libre
+                        localStorage.setItem("murciapin_admin", "true");
+                        alert("🟢 ¡Modo Administrador Activado! Barra libre de pines activada para ti.");
+                    }
+                    clickCount = 0;
+                }
+            });
+        }
+
+        function abrirFormularioPin(lat, lng) {
+            document.getElementById("form-lat").value = lat;
+            document.getElementById("form-lng").value = lng;
+            bottomSheet.classList.add("show");
+        }
+
+        function cerrarFormularioPin() {
+            bottomSheet.classList.remove("show");
+            formEvento.reset();
+        }
+
+        function calcularFechaExpiracion(tipo) {
+            const ahora = new Date();
+            let horasDeVida = 2;
+            switch (tipo.toLowerCase()) {
+                case 'musica': horasDeVida = 2; break;
+                case 'deporte': horasDeVida = 3; break;
+                case 'social': horasDeVida = 3; break;
+                case 'comida': horasDeVida = 2; break;
+                case 'gaming': horasDeVida = 4; break;
+                case 'cultura': horasDeVida = 5; break;
+                case 'aviso': horasDeVida = 2; break;
+            }
+            ahora.setHours(ahora.getHours() + horasDeVida);
+            return ahora.toISOString();
+        }
+
+        async function cargarEventos() {
+            const ahora = new Date().toISOString();
+            const { data: events, error } = await supabaseClient
+                .from('events')
+                .select('*')
+                .gt('expires_at', ahora);
+
+            if (error) {
+                console.error("Error cargando pines:", error);
+                return;
+            }
+
+            events.forEach(evento => {
+                const iconos = {
+                    musica: "🎵", deporte: "⚽", social: "🍻", 
+                    comida: "🍔", gaming: "🎮", cultura: "🎨", aviso: "🚨"
+                };
+                const emoji = iconos[evento.type.toLowerCase()] || "📍";
+
+                const customIcon = L.divIcon({
+                    html: emoji,
+                    className: 'emoji-marker',
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16],
+                    popupAnchor: [0, -14]
+                });
+
+                const marcador = L.marker([evento.lat, evento.lng], { icon: customIcon }).addTo(map);
+                
+                const contenidoPopup = `
+                    <div class="popup-evento">
+                        <div class="tipo">${emoji} ${evento.type}</div>
+                        <p><strong>${evento.comment}</strong></p>
+                    </div>
+                `;
+                marcador.bindPopup(contenidoPopup);
+            });
+        }
+
+        async function guardarEventoEnSupabase(e) {
+            e.preventDefault();
+            const lat = parseFloat(document.getElementById("form-lat").value);
+            const lng = parseFloat(document.getElementById("form-lng").value);
+            const type = document.getElementById("event-type").value;
+            const comment = document.getElementById("event-comment").value;
+            const expires_at = calcularFechaExpiracion(type);
+
+            // COMPROBAMOS SI ERES EL ADMIN CON BARRA LIBRE
+            const esAdmin = localStorage.getItem("murciapin_admin") === "true";
+
+            if (!esAdmin) {
+                // Si NO eres admin, se ejecutan las restricciones anti-spam normales
+                const haceUnaHora = new Date();
+                haceUnaHora.setHours(haceUnaHora.getHours() - 1);
+                const haceUnaHoraISO = haceUnaHora.toISOString();
+
+                const { data: pinesRecientes, error: errorCheck } = await supabaseClient
+                    .from('events')
+                    .select('id')
+                    .eq('user_id', ID_USUARIO)
+                    .gte('created_at', haceUnaHoraISO);
+
+                if (errorCheck) {
+                    alert("Error de control anti-spam: " + errorCheck.message);
+                    return;
+                }
+
+                if (pinesRecientes && pinesRecientes.length >= 3) {
+                    alert("¡Acción denegada! Has alcanzado el límite máximo de 3 pines por hora para evitar spam.");
+                    cerrarFormularioPin();
+                    return;
+                }
+            } else {
+                console.log("Ignorando filtros anti-spam por Modo Administrador Activo.");
+            }
+
+            // Inserción en la base de datos
+            const { error } = await supabaseClient
+                .from('events')
+                .insert([{ lat, lng, type, comment, expires_at, user_id: ID_USUARIO }]);
+
+            if (error) {
+                alert("Fallo al guardar: " + error.message);
+                return;
+            }
+
+            cerrarFormularioPin();
+            location.reload(); 
+        }
+    </script>
 </body>
 </html>
