@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MurciaPin — Mapa de Eventos en Tiempo Real</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <button id="btn-add-pin" class="btn-flotante" title="Añadir evento aquí">+</button>
+
+    <div id="bottom-sheet" class="bottom-sheet">
+        <div class="sheet-header">
+            <div class="sheet-handle"></div>
+            <button id="btn-close-sheet" class="btn-cerrar">&times;</button>
+        </div>
+        
+        <div class="sheet-content">
+            <h3>¿Qué está pasando aquí?</h3>
+            <p class="sheet-subtitle">El pin desaparecerá automáticamente en unas horas.</p>
+            
+            <form id="form-evento">
+                <input type="hidden" id="form-lat">
+                <input type="hidden" id="form-lng">
+
+                <div class="form-group">
+                    <label for="event-type">Tipo de evento</label>
+                    <select id="event-type" required>
+                        <option value="" disabled selected>Selecciona una categoría...</option>
+                        <option value="Musica">🎵 Música</option>
+                        <option value="Deporte">⚽ Deporte</option>
+                        <option value="Social">🍻 Social</option>
+                        <option value="Comida">🍔 Comida</option>
+                        <option value="Gaming">🎮 Gaming</option>
+                        <option value="Cultura">🎨 Cultura</option>
+                        <option value="Aviso">🚨 Aviso</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="event-comment">¿Qué pasa? (Anónimo, máx. 140 caracteres)</label>
+                    <textarea id="event-comment" maxlength="140" placeholder="Ej: Concierto en directo, control..." required></textarea>
+                </div>
+
+                <button type="submit" id="btn-guardar" class="btn-enviar">Soltar Pin 📍</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script>
+        // 1. CONFIGURACIÓN DE CREDENCIALES
+        const URL_SUPABASE = "https://sfeckkggzfokbhexmoao.supabase.co";
+        const KEY_SUPABASE = "sb_publishable_6k_ysIBmr16TMhllsZF4mg_UEsS_zYr";
+        
+        // Dejamos la variable declarada arriba, pero la inicializaremos abajo de forma segura
+        let supabaseClient;
+
+        // 2. CONFIGURACIÓN GEOGRÁFICA
+        const MURCIA_CENTRO = [37.9922, -1.1307];
+        const MURCIA_BOUNDS = L.latLngBounds(L.latLng(37.3, -2.2), L.latLng(38.8, -0.6));
+
+        let map;
+        let ID_USUARIO;
+        let bottomSheet, btnCloseSheet, formEvento, btnAddPin;
+
+        // 3. INICIALIZACIÓN SEGURA (Cuando todo el HTML y scripts externos estén listos)
+        document.addEventListener("DOMContentLoaded", () => {
+            // Inicializamos el cliente de Supabase AQUÍ para asegurar que la librería ya está cargada en memoria
+            supabaseClient = Supabase.createClient(URL_SUPABASE, KEY_SUPABASE);
+
+            bottomSheet = document.getElementById("bottom-sheet");
+            btnCloseSheet = document.getElementById("btn-close-sheet");
+            formEvento = document.getElementById("form-evento");
+            btnAddPin = document.getElementById("btn-add-pin");
+
+            obtenerOIdAnonimo();
+            inicializarMapa();
+            configurarEventosInterfaz();
+            cargarEventos();
+        });
+
+        function obtenerOIdAnonimo() {
+            let id = localStorage.getItem("murciapin_user_id");
+            if (!id) {
+                id = 'user-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now();
+                localStorage.setItem("murciapin_user_id", id);
+            }
+            ID_USUARIO = id;
+        }
+
+        function inicializarMapa() {
+            map = L.map('map', {
+                maxBounds: MURCIA_BOUNDS,
+                maxBoundsViscosity: 0.8
+            }).setView(MURCIA_CENTRO, 14);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            map.locate({ setView: true, maxZoom: 15 });
+            map.on('locationerror', () => { map.setView(MURCIA_CENTRO, 14); });
+
+            map.on('click', (e) => {
+                abrirFormularioPin(e.latlng.lat, e.latlng.lng);
+            });
+        }
+
+        function configurarEventosInterfaz() {
+            btnCloseSheet.addEventListener("click", cerrarFormularioPin);
+            btnAddPin.addEventListener("click", () => {
+                const centro = map.getCenter();
+                abrirFormularioPin(centro.lat, centro.lng);
+            });
+            formEvento.addEventListener("submit", guardarEventoEnSupabase);
+        }
+
+        function abrirFormularioPin(lat, lng) {
+            document.getElementById("form-lat").value = lat;
+            document.getElementById("form-lng").value = lng;
+            bottomSheet.classList.add("show");
+        }
+
+        function cerrarFormularioPin() {
+            bottomSheet.classList.remove("show");
+            formEvento.reset();
+        }
+
+        function calcularFechaExpiracion(tipo) {
+            const ahora = new Date();
+            let horasDeVida = 2;
+            switch (tipo.toLowerCase()) {
+                case 'musica': horasDeVida = 2; break;
+                case 'deporte': horasDeVida = 3; break;
+                case 'social': horasDeVida = 3; break;
+                case 'comida': horasDeVida = 2; break;
+                case 'gaming': horasDeVida = 4; break;
+                case 'cultura': horasDeVida = 5; break;
+                case 'aviso': horasDeVida = 2; break;
+            }
+            ahora.setHours(ahora.getHours() + horasDeVida);
+            return ahora.toISOString();
+        }
+
+        async function cargarEventos() {
+            const ahora = new Date().toISOString();
+            const { data: events, error } = await supabaseClient
+                .from('events')
+                .select('*')
+                .gt('expires_at', ahora);
+
+            if (error) {
+                console.error("Error cargando pines:", error);
+                return;
+            }
+
+            events.forEach(evento => {
+                const iconos = {
+                    musica: "🎵", deporte: "⚽", social: "🍻", 
+                    comida: "🍔", gaming: "🎮", cultura: "🎨", aviso: "🚨"
+                };
+                const emoji = iconos[evento.type.toLowerCase()] || "📍";
+
+                const marcador = L.marker([evento.lat, evento.lng]).addTo(map);
+                const contenidoPopup = `
+                    <div class="popup-evento">
+                        <div class="tipo">${emoji} ${evento.type}</div>
+                        <p><strong>${evento.comment}</strong></p>
+                    </div>
+                `;
+                marcador.bindPopup(contenidoPopup);
+            });
+        }
+
+        async function guardarEventoEnSupabase(e) {
+            e.preventDefault();
+            const lat = parseFloat(document.getElementById("form-lat").value);
+            const lng = parseFloat(document.getElementById("form-lng").value);
+            const type = document.getElementById("event-type").value;
+            const comment = document.getElementById("event-comment").value;
+            const expires_at = calcularFechaExpiracion(type);
+
+            const { error } = await supabaseClient
+                .from('events')
+                .insert([{ lat, lng, type, comment, expires_at, user_id: ID_USUARIO }]);
+
+            if (error) {
+                alert("Fallo al guardar: " + error.message);
+                return;
+            }
+
+            cerrarFormularioPin();
+            location.reload(); 
+        }
+    </script>
+</body>
+</html>
