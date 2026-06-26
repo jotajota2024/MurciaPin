@@ -22,6 +22,7 @@
     </div>
 
     <div id="map"></div>
+    <button id="btn-add-pin" class="btn-flotante">+</button>
 
     <div id="bottom-sheet" class="bottom-sheet">
         <div class="sheet-header"><button id="btn-close-sheet" class="btn-cerrar">&times;</button></div>
@@ -45,73 +46,32 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <script>
-        const supabaseClient = supabase.createClient("https://sfeckkggzfokbhexmoao.supabase.co", "sb_publishable_6k_ysIBmr16TMhllsZF4mg_UEsS_zYr");
-        let esAdmin = false;
-        let ID_USUARIO;
+        // Inicialización correcta
+        const supabase = supabase.createClient("https://sfeckkggzfokbhexmoao.supabase.co", "sb_publishable_6k_ysIBmr16TMhllsZF4mg_UEsS_zYr");
+        
+        let ID_USUARIO = localStorage.getItem("murciapin_user_id") || ('user-' + Math.random().toString(36).substring(2, 11));
+        localStorage.setItem("murciapin_user_id", ID_USUARIO);
 
         document.addEventListener("DOMContentLoaded", () => {
-            // Recuperar o generar ID de usuario para cumplir con el Not-Null constraint
-            ID_USUARIO = localStorage.getItem("murciapin_user_id") || crypto.randomUUID();
-            localStorage.setItem("murciapin_user_id", ID_USUARIO);
+            document.getElementById("form-evento").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                
+                const { error } = await supabase.from('events').insert([{ 
+                    lat: document.getElementById("form-lat").value, 
+                    lng: document.getElementById("form-lng").value, 
+                    type: document.getElementById("event-type").value, 
+                    comment: document.getElementById("event-comment").value, 
+                    expires_at: new Date().toISOString(),
+                    user_id: ID_USUARIO 
+                }]);
 
-            const map = L.map('map').setView([37.9922, -1.1307], 14);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
-
-            map.on('click', (e) => {
-                document.getElementById("form-lat").value = e.latlng.lat;
-                document.getElementById("form-lng").value = e.latlng.lng;
-                document.getElementById("bottom-sheet").classList.add("show");
-            });
-
-            // Lógica Login Admin
-            let clicks = 0;
-            document.getElementById("logo-admin").addEventListener("click", () => {
-                clicks++;
-                if (clicks === 5) {
-                    const u = prompt("Usuario:");
-                    const p = prompt("Contraseña:");
-                    if (u === "jose" && p === "joselito") {
-                        esAdmin = true;
-                        alert("🟢 Modo Admin Activado");
-                    } else { alert("🔴 Acceso denegado"); }
-                    clicks = 0;
+                if (error) {
+                    alert("Error: " + error.message);
+                } else {
+                    location.reload();
                 }
             });
-
-            document.getElementById("form-evento").addEventListener("submit", guardarEvento);
         });
-
-        async function guardarEvento(e) {
-            e.preventDefault();
-            
-            // Protección: Solo los NO-admins pasan el filtro
-            if (!esAdmin) {
-                const haceUnaHora = new Date(new Date().getTime() - 3600000).toISOString();
-                const { count } = await supabaseClient
-                    .from('events')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('user_id', ID_USUARIO) // Filtra tus pines para ver cuántos has puesto tú
-                    .gte('created_at', haceUnaHora);
-
-                if (count >= 3) {
-                    alert("⚠️ Límite de 3 pines por hora alcanzado.");
-                    return;
-                }
-            }
-
-            // Guardar enviando siempre el ID
-            const { error } = await supabaseClient.from('events').insert([{ 
-                lat: document.getElementById("form-lat").value, 
-                lng: document.getElementById("form-lng").value, 
-                type: document.getElementById("event-type").value, 
-                comment: document.getElementById("event-comment").value, 
-                expires_at: new Date().toISOString(),
-                user_id: ID_USUARIO 
-            }]);
-
-            if (error) alert("Error: " + error.message);
-            else location.reload();
-        }
     </script>
 </body>
 </html>
