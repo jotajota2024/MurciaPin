@@ -61,7 +61,6 @@
         const URL_SUPABASE = "https://sfeckkggzfokbhexmoao.supabase.co";
         const KEY_SUPABASE = "sb_publishable_6k_ysIBmr16TMhllsZF4mg_UEsS_zYr";
         
-        // Dejamos la variable declarada arriba, pero la inicializaremos abajo de forma segura
         let supabaseClient;
 
         // 2. CONFIGURACIÓN GEOGRÁFICA
@@ -72,10 +71,10 @@
         let ID_USUARIO;
         let bottomSheet, btnCloseSheet, formEvento, btnAddPin;
 
-        // 3. INICIALIZACIÓN SEGURA (Cuando todo el HTML y scripts externos estén listos)
+        // 3. INICIALIZACIÓN
         document.addEventListener("DOMContentLoaded", () => {
-            // Inicializamos el cliente de Supabase AQUÍ para asegurar que la librería ya está cargada en memoria
-            supabaseClient = Supabase.createClient(URL_SUPABASE, KEY_SUPABASE);
+            // CORRECCIÓN AQUÍ: Usamos 'supabase' en minúscula para llamar al CDN correctamente
+            supabaseClient = supabase.createClient(URL_SUPABASE, KEY_SUPABASE);
 
             bottomSheet = document.getElementById("bottom-sheet");
             btnCloseSheet = document.getElementById("btn-close-sheet");
@@ -190,7 +189,6 @@
             const comment = document.getElementById("event-comment").value;
             const expires_at = calcularFechaExpiracion(type);
 
-            // CAMBIO IMPRESCINDIBLE AQUÍ: Se corrige 'supabase' por 'supabaseClient'
             const { error } = await supabaseClient
                 .from('events')
                 .insert([{ lat, lng, type, comment, expires_at, user_id: ID_USUARIO }]);
@@ -204,5 +202,3 @@
             location.reload(); 
         }
     </script>
-</body>
-</html>
