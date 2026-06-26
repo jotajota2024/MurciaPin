@@ -2,9 +2,8 @@
 const SUPABASE_URL = "https://sfeckkggzfokbhexmoao.supabase.co";
 const SUPABASE_KEY = "sb_publishable_6k_ysIBmr16TMhllsZF4mg_UEsS_zYr";
 
-// Corrección de inicialización: accedemos a createClient desde el objeto global supabase
-const { createClient } = supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+// INICIALIZACIÓN SEGURA: Usamos la librería cargada globalmente por el CDN
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // 2. CONFIGURACIÓN GEOGRÁFICA
 const MURCIA_CENTRO = [37.9922, -1.1307];
@@ -16,7 +15,7 @@ let ID_USUARIO;
 // Elementos del DOM
 let bottomSheet, btnCloseSheet, formEvento, btnAddPin;
 
-// 3. INICIALIZACIÓN DE LA APP
+// 3. INICIALIZACIÓN
 document.addEventListener("DOMContentLoaded", () => {
     bottomSheet = document.getElementById("bottom-sheet");
     btnCloseSheet = document.getElementById("btn-close-sheet");
@@ -32,7 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function obtenerOIdAnonimo() {
     let id = localStorage.getItem("murciapin_user_id");
     if (!id) {
-        id = 'user-' + Math.random().toString(36).substring(2, 11);
+        id = 'user-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now();
         localStorage.setItem("murciapin_user_id", id);
     }
     ID_USUARIO = id;
@@ -44,7 +43,6 @@ function inicializarMapa() {
         maxZoom: 19,
         attribution: '© OpenStreetMap'
     }).addTo(map);
-
     map.on('click', (e) => abrirFormularioPin(e.latlng.lat, e.latlng.lng));
 }
 
@@ -68,31 +66,30 @@ function cerrarFormularioPin() {
     formEvento.reset();
 }
 
+function calcularFechaExpiracion(tipo) {
+    const ahora = new Date();
+    const duraciones = { 'musica': 2, 'deporte': 3, 'social': 3, 'comida': 2, 'gaming': 4, 'cultura': 5, 'aviso': 2 };
+    ahora.setHours(ahora.getHours() + (duraciones[tipo.toLowerCase()] || 2));
+    return ahora.toISOString();
+}
+
 async function cargarEventos() {
-    const { data: events, error } = await supabaseClient.from('events').select('*');
-    if (error) {
-        console.error("Error cargando eventos:", error);
-        return;
-    }
-    // Lógica para añadir marcadores al mapa
+    const { data: events, error } = await supabase
+        .from('events')
+        .select('*')
+        .gt('expires_at', new Date().toISOString());
+
+    if (error) return;
+
     events.forEach(evento => {
-        L.marker([evento.lat, evento.lng]).addTo(map).bindPopup(evento.comment);
+        const iconos = { musica: "🎵", deporte: "⚽", social: "🍻", comida: "🍔", gaming: "🎮", cultura: "🎨", aviso: "🚨" };
+        L.marker([evento.lat, evento.lng])
+            .addTo(map)
+            .bindPopup(`${iconos[evento.type.toLowerCase()] || "📍"} <b>${evento.type}</b><br>${evento.comment}`);
     });
 }
 
 async function guardarEventoEnSupabase(e) {
     e.preventDefault();
-    const { error } = await supabaseClient.from('events').insert([{
-        lat: document.getElementById("form-lat").value,
-        lng: document.getElementById("form-lng").value,
-        type: document.getElementById("event-type").value,
-        comment: document.getElementById("event-comment").value,
-        user_id: ID_USUARIO
-    }]);
-
-    if (error) {
-        alert("Error: " + error.message);
-    } else {
-        location.reload();
-    }
-}
+    
+    // MODO ADMINISTRADOR: Si activas esto, enviamos 'admin' y el trigger de SQL
