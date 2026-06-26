@@ -190,6 +190,7 @@
             const comment = document.getElementById("event-comment").value;
             const expires_at = calcularFechaExpiracion(type);
 
+            // CAMBIO IMPRESCINDIBLE AQUÍ: Se corrige 'supabase' por 'supabaseClient'
             const { error } = await supabaseClient
                 .from('events')
                 .insert([{ lat, lng, type, comment, expires_at, user_id: ID_USUARIO }]);
