@@ -57,17 +57,24 @@
         const KEY_SUPABASE = "sb_publishable_6k_ysIBmr16TMhllsZF4mg_UEsS_zYr";
         
         const supabaseClient = supabase.createClient(URL_SUPABASE, KEY_SUPABASE);
-        let ID_USUARIO;
+        let ID_USUARIO, map;
 
         document.addEventListener("DOMContentLoaded", () => {
-            // Obtener o crear ID único de usuario
             ID_USUARIO = localStorage.getItem("murciapin_user_id") || crypto.randomUUID();
             localStorage.setItem("murciapin_user_id", ID_USUARIO);
             
-            // Inicializar mapa y eventos (código de Leaflet igual que tenías)
-            // ... (Asegúrate de mantener tu lógica de inicialización del mapa aquí)
-            
+            // INICIALIZACIÓN DEL MAPA
+            map = L.map('map').setView([37.9922, -1.1307], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+
+            map.on('click', (e) => {
+                document.getElementById("form-lat").value = e.latlng.lat;
+                document.getElementById("form-lng").value = e.latlng.lng;
+                document.getElementById("bottom-sheet").classList.add("show");
+            });
+
             document.getElementById("form-evento").addEventListener("submit", guardarEventoEnSupabase);
+            document.getElementById("btn-close-sheet").addEventListener("click", () => document.getElementById("bottom-sheet").classList.remove("show"));
         });
 
         async function guardarEventoEnSupabase(e) {
@@ -77,7 +84,6 @@
             const type = document.getElementById("event-type").value;
             const comment = document.getElementById("event-comment").value;
 
-            // Enviamos el pin. Si el servidor lo bloquea, recibiremos el error del Trigger
             const { error } = await supabaseClient
                 .from('events')
                 .insert([{ lat, lng, type, comment, expires_at: new Date().toISOString(), user_id: ID_USUARIO }]);
