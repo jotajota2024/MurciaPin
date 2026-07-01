@@ -1,5 +1,6 @@
 // Inicialización de mapa
-const map = L.map('map').setView([38.0, -1.1], 13);
+// Busca esta línea y actualízala así:
+const map = L.map('map').setView([38.0075, -1.1710], 16);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 // Cargar actualizaciones de Firebase
