@@ -2,325 +2,94 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MurciaPin — Mapa de Eventos en Tiempo Real</title>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puebla de Soto - App Oficial</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <style>
-        /* Barra superior fija de MurciaPin */
-        .navbar-top {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 50px;
-            background: #ffffff;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            z-index: 2000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        /* Añadimos cursor pointer para saber que es clickable */
-        .navbar-top h1 {
-            margin: 0;
-            font-size: 1.2rem;
-            font-family: system-ui, -apple-system, sans-serif;
-            font-weight: 700;
-            color: #333;
-            letter-spacing: 0.5px;
-            cursor: pointer;
-            user-select: none;
-        }
-        #map {
-            position: absolute;
-            top: 50px;
-            bottom: 0;
-            left: 0;
-            right: 0;
-        }
-        .emoji-marker {
-            background: white;
-            border: 2px solid #333;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        }
+        :root { --primary: #5d50c6; --bg: #f8f9fb; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #1a1a1a; }
+        .container { max-width: 450px; margin: auto; }
+        .app-header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
+        .logo { width: 60px; height: 60px; background: #5d50c6; color: white; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+        h1 { font-size: 22px; margin: 0; }
+        .status-banner { background: #e8f5e9; padding: 15px; border-radius: 15px; color: #2e7d32; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .push-section { background: white; padding: 20px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .btn-activar { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .news-card { background: white; padding: 15px; border-radius: 20px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .actions-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 20px; margin-bottom: 20px; }
+        .action-card { background: white; padding: 15px; border-radius: 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .icon-box { font-size: 20px; margin-bottom: 8px; }
+        #btn-ver-mas { width: 100%; padding: 12px; border-radius: 15px; border: none; background: #eee; font-weight: bold; cursor: pointer; margin-bottom: 20px; }
+        #map { height: 250px; width: 100%; border-radius: 20px; margin-top: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
 
-    <div class="navbar-top">
-        <h1 id="logo-admin">📍 MurciaPin</h1>
+<div class="container">
+    <div class="app-header">
+        <div class="logo"><i class="fa-solid fa-building-columns"></i></div>
+        <h1>Puebla de Soto</h1>
+    </div>
+
+    <div class="status-banner"><i class="fa-solid fa-circle-check"></i> Todo funciona con normalidad</div>
+
+    <div class="push-section">
+        <div><i class="fa-solid fa-bell" style="color: var(--primary);"></i> <strong>Activar alertas</strong></div>
+        <button class="btn-activar">Activar</button>
+    </div>
+
+    <h3>Últimas publicaciones</h3>
+    <div id="tablon"></div>
+    <button id="btn-ver-mas">Ver más noticias</button>
+
+    <div class="actions-grid">
+        <div class="action-card"><div class="icon-box" style="color: #e74c3c;"><i class="fa-solid fa-triangle-exclamation"></i></div>Incidencias</div>
+        <div class="action-card"><div class="icon-box" style="color: #9b59b6;"><i class="fa-solid fa-calendar-days"></i></div>Eventos</div>
+        <div class="action-card"><div class="icon-box" style="color: #27ae60;"><i class="fa-solid fa-info-circle"></i></div>Info</div>
     </div>
 
     <div id="map"></div>
+</div>
 
-    <button id="btn-add-pin" class="btn-flotante" title="Añadir evento aquí">+</button>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-    <div id="bottom-sheet" class="bottom-sheet">
-        <div class="sheet-header">
-            <div class="sheet-handle"></div>
-            <button id="btn-close-sheet" class="btn-cerrar">&times;</button>
-        </div>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCCEtpLL__EnJ288QLs3HJke8q2PaIpQsk",
+        authDomain: "pedaneopuebladesoto.firebaseapp.com",
+        projectId: "pedaneopuebladesoto",
+        storageBucket: "pedaneopuebladesoto.firebasestorage.app",
+        messagingSenderId: "808007135736",
+        appId: "1:808007135736:web:53dc8cc8dbc376b206260d"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const map = L.map('map').setView([38.0125, -1.1685], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    async function cargar(cantidad) {
+        const tablon = document.getElementById('tablon');
+        const q = query(collection(db, "incidencias"), limit(cantidad));
+        const snapshot = await getDocs(q);
         
-        <div class="sheet-content">
-            <h3>¿Qué está pasando aquí?</h3>
-            <p class="sheet-subtitle">El pin desaparecerá automáticamente en unas horas.</p>
-            
-            <form id="form-evento">
-                <input type="hidden" id="form-lat">
-                <input type="hidden" id="form-lng">
-
-                <div class="form-group">
-                    <label for="event-type">Tipo de evento</label>
-                    <select id="event-type" required>
-                        <option value="" disabled selected>Selecciona una categoría...</option>
-                        <option value="Musica">🎵 Música</option>
-                        <option value="Deporte">⚽ Deporte</option>
-                        <option value="Social">🍻 Social</option>
-                        <option value="Comida">🍔 Comida</option>
-                        <option value="Gaming">🎮 Gaming</option>
-                        <option value="Cultura">🎨 Cultura</option>
-                        <option value="Aviso">🚨 Aviso</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="event-comment">¿Qué pasa? (Anónimo, máx. 140 caracteres)</label>
-                    <textarea id="event-comment" maxlength="140" placeholder="Ej: Concierto en directo, tapeo..." required></textarea>
-                </div>
-
-                <button type="submit" id="btn-guardar" class="btn-enviar">Soltar Pin 📍</button>
-            </form>
-        </div>
-    </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <script>
-        const URL_SUPABASE = "https://sfeckkggzfokbhexmoao.supabase.co";
-        const KEY_SUPABASE = "sb_publishable_6k_ysIBmr16TMhllsZF4mg_UEsS_zYr";
-        
-        let supabaseClient;
-
-        const MURCIA_CENTRO = [37.9922, -1.1307];
-        const MURCIA_BOUNDS = L.latLngBounds(L.latLng(37.3, -2.2), L.latLng(38.8, -0.6));
-
-        let map;
-        let ID_USUARIO;
-        let bottomSheet, btnCloseSheet, formEvento, btnAddPin;
-
-        // Variables para controlar el "Huevo de Pascua" de los 5 clics
-        let clickCount = 0;
-        let clickTimeout;
-
-        document.addEventListener("DOMContentLoaded", () => {
-            supabaseClient = supabase.createClient(URL_SUPABASE, KEY_SUPABASE);
-
-            bottomSheet = document.getElementById("bottom-sheet");
-            btnCloseSheet = document.getElementById("btn-close-sheet");
-            formEvento = document.getElementById("form-evento");
-            btnAddPin = document.getElementById("btn-add-pin");
-
-            obtenerOIdAnonimo();
-            inicializarMapa();
-            configurarEventosInterfaz();
-            configurarModoAdmin(); // <- Activamos la escucha del logo
-            cargarEventos();
+        tablon.innerHTML = '';
+        snapshot.forEach((doc) => {
+            const d = doc.data();
+            const div = document.createElement('div');
+            div.className = 'news-card';
+            div.innerHTML = `<strong>${d.tipo || 'Aviso'}</strong><br>${d.comentario || ''}`;
+            tablon.appendChild(div);
+            if(d.lat && d.lng) L.marker([d.lat, d.lng]).addTo(map).bindPopup(d.tipo);
         });
+    }
 
-        function obtenerOIdAnonimo() {
-            let id = localStorage.getItem("murciapin_user_id");
-            if (!id || id.startsWith("user-")) {
-                id = crypto.randomUUID(); 
-                localStorage.setItem("murciapin_user_id", id);
-            }
-            ID_USUARIO = id;
-        }
-
-        function inicializarMapa() {
-            map = L.map('map', {
-                maxBounds: MURCIA_BOUNDS,
-                maxBoundsViscosity: 0.8
-            }).setView(MURCIA_CENTRO, 14);
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap'
-            }).addTo(map);
-
-            map.locate({ setView: true, maxZoom: 15 });
-            map.on('locationerror', () => { map.setView(MURCIA_CENTRO, 14); });
-
-            map.on('click', (e) => {
-                abrirFormularioPin(e.latlng.lat, e.latlng.lng);
-            });
-        }
-
-        function configurarEventosInterfaz() {
-            btnCloseSheet.addEventListener("click", cerrarFormularioPin);
-            btnAddPin.addEventListener("click", () => {
-                const centro = map.getCenter();
-                abrirFormularioPin(centro.lat, centro.lng);
-            });
-            formEvento.addEventListener("submit", guardarEventoEnSupabase);
-        }
-
-        // LÓGICA OCULTA DEL MODO ADMINISTRADOR
-        function configurarModoAdmin() {
-            const logo = document.getElementById("logo-admin");
-            
-            logo.addEventListener("click", () => {
-                clickCount++;
-                
-                clearTimeout(clickTimeout);
-                
-                // Si pasa más de 2 segundos sin hacer clic, el contador se reinicia
-                clickTimeout = setTimeout(() => {
-                    clickCount = 0;
-                }, 2000);
-
-                // Al llegar a 5 clics rápidos...
-                if (clickCount === 5) {
-                    const esAdmin = localStorage.getItem("murciapin_admin") === "true";
-                    
-                    if (esAdmin) {
-                        // Si ya eras admin, lo desactiva (por si quieres volver a probar como usuario normal)
-                        localStorage.removeItem("murciapin_admin");
-                        alert("🔴 Modo Administrador Desactivado. Volviendo a restricciones estándar.");
-                    } else {
-                        // Activa el modo libre
-                        localStorage.setItem("murciapin_admin", "true");
-                        alert("🟢 ¡Modo Administrador Activado! Barra libre de pines activada para ti.");
-                    }
-                    clickCount = 0;
-                }
-            });
-        }
-
-        function abrirFormularioPin(lat, lng) {
-            document.getElementById("form-lat").value = lat;
-            document.getElementById("form-lng").value = lng;
-            bottomSheet.classList.add("show");
-        }
-
-        function cerrarFormularioPin() {
-            bottomSheet.classList.remove("show");
-            formEvento.reset();
-        }
-
-        function calcularFechaExpiracion(tipo) {
-            const ahora = new Date();
-            let horasDeVida = 2;
-            switch (tipo.toLowerCase()) {
-                case 'musica': horasDeVida = 2; break;
-                case 'deporte': horasDeVida = 3; break;
-                case 'social': horasDeVida = 3; break;
-                case 'comida': horasDeVida = 2; break;
-                case 'gaming': horasDeVida = 4; break;
-                case 'cultura': horasDeVida = 5; break;
-                case 'aviso': horasDeVida = 2; break;
-            }
-            ahora.setHours(ahora.getHours() + horasDeVida);
-            return ahora.toISOString();
-        }
-
-        async function cargarEventos() {
-            const ahora = new Date().toISOString();
-            const { data: events, error } = await supabaseClient
-                .from('events')
-                .select('*')
-                .gt('expires_at', ahora);
-
-            if (error) {
-                console.error("Error cargando pines:", error);
-                return;
-            }
-
-            events.forEach(evento => {
-                const iconos = {
-                    musica: "🎵", deporte: "⚽", social: "🍻", 
-                    comida: "🍔", gaming: "🎮", cultura: "🎨", aviso: "🚨"
-                };
-                const emoji = iconos[evento.type.toLowerCase()] || "📍";
-
-                const customIcon = L.divIcon({
-                    html: emoji,
-                    className: 'emoji-marker',
-                    iconSize: [32, 32],
-                    iconAnchor: [16, 16],
-                    popupAnchor: [0, -14]
-                });
-
-                const marcador = L.marker([evento.lat, evento.lng], { icon: customIcon }).addTo(map);
-                
-                const contenidoPopup = `
-                    <div class="popup-evento">
-                        <div class="tipo">${emoji} ${evento.type}</div>
-                        <p><strong>${evento.comment}</strong></p>
-                    </div>
-                `;
-                marcador.bindPopup(contenidoPopup);
-            });
-        }
-
-        async function guardarEventoEnSupabase(e) {
-            e.preventDefault();
-            const lat = parseFloat(document.getElementById("form-lat").value);
-            const lng = parseFloat(document.getElementById("form-lng").value);
-            const type = document.getElementById("event-type").value;
-            const comment = document.getElementById("event-comment").value;
-            const expires_at = calcularFechaExpiracion(type);
-
-            // COMPROBAMOS SI ERES EL ADMIN CON BARRA LIBRE
-            const esAdmin = localStorage.getItem("murciapin_admin") === "true";
-
-            if (!esAdmin) {
-                // Si NO eres admin, se ejecutan las restricciones anti-spam normales
-                const haceUnaHora = new Date();
-                haceUnaHora.setHours(haceUnaHora.getHours() - 1);
-                const haceUnaHoraISO = haceUnaHora.toISOString();
-
-                const { data: pinesRecientes, error: errorCheck } = await supabaseClient
-                    .from('events')
-                    .select('id')
-                    .eq('user_id', ID_USUARIO)
-                    .gte('created_at', haceUnaHoraISO);
-
-                if (errorCheck) {
-                    alert("Error de control anti-spam: " + errorCheck.message);
-                    return;
-                }
-
-                if (pinesRecientes && pinesRecientes.length >= 3) {
-                    alert("¡Acción denegada! Has alcanzado el límite máximo de 3 pines por hora para evitar spam.");
-                    cerrarFormularioPin();
-                    return;
-                }
-            } else {
-                console.log("Ignorando filtros anti-spam por Modo Administrador Activo.");
-            }
-
-            // Inserción en la base de datos
-            const { error } = await supabaseClient
-                .from('events')
-                .insert([{ lat, lng, type, comment, expires_at, user_id: ID_USUARIO }]);
-
-            if (error) {
-                alert("Fallo al guardar: " + error.message);
-                return;
-            }
-
-            cerrarFormularioPin();
-            location.reload(); 
-        }
-    </script>
+    document.getElementById('btn-ver-mas').onclick = () => cargar(10);
+    cargar(5); // Carga inicial
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
 </html>

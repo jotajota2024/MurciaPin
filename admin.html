@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Puebla de Soto</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style> 
+        #admin-panel { display: none; }
+        #map { height: 500px; width: 100%; }
+    </style>
+</head>
+<body>
+    <div id="login-form">
+        <h3>Acceso Administrador</h3>
+        <input type="email" id="email" placeholder="Email"><br>
+        <input type="password" id="password" placeholder="Contraseña"><br>
+        <button id="btn-login">Entrar</button>
+    </div>
+
+    <div id="admin-panel">
+        <button onclick="location.reload()">Cerrar sesión</button>
+        <div id="map"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+
+        const firebaseConfig = { /* (Igual que en index.html) */ 
+            apiKey: "AIzaSyCCEtpLL__EnJ288QLs3HJke8q2PaIpQsk",
+            authDomain: "pedaneopuebladesoto.firebaseapp.com",
+            projectId: "pedaneopuebladesoto",
+            storageBucket: "pedaneopuebladesoto.firebasestorage.app",
+            messagingSenderId: "808007135736",
+            appId: "1:808007135736:web:53dc8cc8dbc376b206260d"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        let map;
+
+        document.getElementById('btn-login').addEventListener('click', async () => {
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+            try {
+                await signInWithEmailAndPassword(auth, email, pass);
+                document.getElementById('login-form').style.display = 'none';
+                document.getElementById('admin-panel').style.display = 'block';
+                initMap();
+            } catch (e) { alert("Error: " + e.message); }
+        });
+
+        async function initMap() {
+            map = L.map('map').setView([38.0125, -1.1685], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+            // Cargar lo que ya existe
+            const snapshot = await getDocs(collection(db, "incidencias"));
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                L.marker([data.lat, data.lng]).addTo(map).bindPopup(data.comentario);
+            });
+
+            // Añadir nuevo
+            map.on('click', async (e) => {
+                const tipo = prompt("Aviso o Incidencia:");
+                const com = prompt("Detalle:");
+                if (tipo && com) {
+                    await addDoc(collection(db, "incidencias"), {
+                        lat: e.latlng.lat, lng: e.latlng.lng, tipo, comentario: com,
+                        hora: new Date().toLocaleTimeString(), fecha: new Date().toLocaleDateString()
+                    });
+                    L.marker([e.latlng.lat, e.latlng.lng]).addTo(map).bindPopup(com);
+                    alert("Publicado");
+                }
+            });
+        }
+    </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+</html>
